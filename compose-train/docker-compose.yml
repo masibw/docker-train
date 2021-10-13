@@ -1,0 +1,49 @@
+version: "3"
+services:
+  nginx:
+    # 公式イメージを用いる
+    image: nginx:1.21.3
+    restart: always
+    # ポートフォワーディングの設定．ホストの80/tcpとコンテナの80/tcpを結びつける
+    ports:
+      - "80:80"
+    volumes:
+      # Nginxの設定ファイルを上書きする
+      - ./build/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+    networks:
+      - train-network
+
+  app:
+    build:
+      context: .
+      dockerfile: ./build/app/Dockerfile
+    # このコンテナがdbコンテナより後に起動するように指定する．コンテナ内のアプリ(DB)が起動しているかは別問題なので注意
+    depends_on:
+      - db
+    env_file:
+      - .env
+    networks:
+      - train-network
+
+  db:
+    image: mysql:8.0
+    command: mysqld
+    volumes:
+      # 初期データを投入する
+      - ./build/mysql/initdb.d:/docker-entrypoint-initdb.d
+      # DBのデータを永続化する
+      - db-data:/var/lib/mysql
+    # ファイルで環境変数を指定する．
+    env_file:
+      - .env
+    networks:
+      - train-network
+
+# コンテナが終了してもDBデータを永続化する
+volumes:
+  db-data:
+
+# コンテナが属するネットワークを作成する
+networks:
+  train-network:
+    driver: bridge
